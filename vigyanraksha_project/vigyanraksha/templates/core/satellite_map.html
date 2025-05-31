@@ -1,0 +1,137 @@
+{% extends 'core/header.html' %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: #f9f9f9;
+            color: #222;
+            overflow: hidden;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+        }
+
+        .panel {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1001;
+            box-shadow: 0 0 10px rgba(0,0,0,0.15);
+            animation: fadeIn 2s ease-in;
+            color: #333;
+        }
+
+        select {
+            padding: 5px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        @keyframes slideDown {
+            from { top: -100px; }
+            to { top: 0; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <label><strong>Filter by category:</strong></label><br>
+    <select id="categoryFilter">
+        <option value="All">All</option>
+        <option value="Weather">Weather</option>
+        <option value="Navigation">Navigation</option>
+        <option value="Defense">Defense</option>
+    </select>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+
+    // Satellite view layer from Esri
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri & contributors',
+        maxZoom: 18
+    }).addTo(map);
+
+    let markers = [];
+
+    function getIcon(category) {
+        const color = {
+            Weather: "green",
+            Navigation: "blue",
+            Defense: "red"
+        }[category] || "grey";
+
+        return L.icon({
+            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+    }
+
+    function updateMap(category = "All") {
+        fetch('/satellite_api/')
+            .then(res => res.json())
+            .then(data => {
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+
+                data.forEach(sat => {
+                    if (sat.latitude && sat.longitude && (category === "All" || sat.category === category)) {
+                        const marker = L.marker([sat.latitude, sat.longitude], {
+                            icon: getIcon(sat.category),
+                            title: sat.name
+                        }).bindPopup(`
+                            <b>${sat.name}</b><br>
+                            Category: ${sat.category}<br>
+                            Latitude: ${sat.latitude.toFixed(2)}<br>
+                            Longitude: ${sat.longitude.toFixed(2)}<br>
+                            Launched: ${sat.launch_date || 'N/A'}
+                        `).addTo(map);
+
+                        markers.push(marker);
+                    }
+                });
+            })
+            .catch(err => console.error("Failed to load satellite data:", err));
+    }
+
+    document.getElementById("categoryFilter").addEventListener("change", function () {
+        updateMap(this.value);
+    });
+
+    updateMap();
+    setInterval(() => {
+        const selectedCategory = document.getElementById("categoryFilter").value;
+        updateMap(selectedCategory);
+    }, 30000);
+</script>
+</body>
+</html>
+{%endblock%}
