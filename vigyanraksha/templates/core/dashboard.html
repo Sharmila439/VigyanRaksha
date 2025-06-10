@@ -1,0 +1,204 @@
+{% extends 'core/header.html' %}
+{% block content %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🛡️ VigyanRaksha – Real-Time Defense Response</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Orbitron', sans-serif;
+      background: linear-gradient(135deg, #fdfdfd, #e6f2ff);
+      color: #1c1c1c;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2.5em;
+      margin-top: 40px;
+      color: #0077b6;
+      text-shadow: 0 0 8px rgba(0, 119, 182, 0.1);
+      animation: pulse 3s infinite alternate;
+      z-index: 1;
+      position: relative;
+    }
+
+    @keyframes pulse {
+      0% { text-shadow: 0 0 8px rgba(0, 119, 182, 0.2); }
+      100% { text-shadow: 0 0 20px rgba(0, 119, 182, 0.4); }
+    }
+
+    .chart-container {
+      width: 90%;
+      max-width: 850px;
+      margin: 30px auto;
+      padding: 30px;
+      background: #ffffffee;
+      border: 1px solid #cce5ff;
+      border-radius: 16px;
+      box-shadow: 0 0 15px rgba(0, 119, 182, 0.1);
+      transition: transform 0.3s ease-in-out;
+      z-index: 1;
+      position: relative;
+    }
+
+    .chart-container:hover {
+      transform: scale(1.01);
+      box-shadow: 0 0 30px rgba(0, 119, 182, 0.15);
+    }
+
+    canvas {
+      background-color: #f9f9f9;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .status {
+      font-family: 'Share Tech Mono', monospace;
+      text-align: center;
+      font-size: 1.1em;
+      margin-top: 20px;
+      color: #0077b6;
+      z-index: 1;
+      position: relative;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.9em;
+      padding: 20px;
+      color: #999;
+      z-index: 1;
+      position: relative;
+    }
+
+    audio {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2em;
+      }
+      .chart-container {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h1>🛰️ VigyanRaksha – Live Defense Stats</h1>
+
+<div class="chart-container">
+  <canvas id="defenseChart" height="100"></canvas>
+</div>
+
+<div class="status">
+  ⏱️ Sync Status: <span id="lastUpdated">Loading...</span>
+</div>
+
+<!-- Sound Alert -->
+<audio id="alertSound" src="https://freesound.org/data/previews/341/341695_5260877-lq.mp3" preload="auto"></audio>
+
+<script>
+  const ctx = document.getElementById('defenseChart').getContext('2d');
+  const alertSound = document.getElementById('alertSound');
+  let lastDroneCount = 0;
+  let lastSatelliteCount = 0;
+
+  const defenseChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['🚨 Drone Alerts', '🛡️ Defense Satellites'],
+      datasets: [{
+        label: 'Live Units Count',
+        data: [0, 0],
+        backgroundColor: ['#ff6b6b', '#00b4d8'],
+        borderRadius: 8,
+        hoverBackgroundColor: ['#ff8787', '#48cae4'],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: {
+        duration: 1000,
+        easing: 'easeOutQuart'
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { color: "#333" },
+          grid: { color: "rgba(0,0,0,0.05)" }
+        },
+        x: {
+          ticks: { color: "#333" },
+          grid: { color: "rgba(0,0,0,0.03)" }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#222",
+            font: { weight: 'bold' }
+          }
+        },
+        tooltip: {
+          backgroundColor: '#f0f0f0',
+          titleColor: '#0077b6',
+          bodyColor: '#333',
+          borderColor: '#0077b6',
+          borderWidth: 1
+        }
+      }
+    }
+  });
+
+  async function fetchDefenseData() {
+    try {
+      const [droneRes, satelliteRes] = await Promise.all([
+        fetch("/api/drones/"),
+        fetch("/satellite_api/")
+      ]);
+
+      const drones = await droneRes.json();
+      const satellites = await satelliteRes.json();
+
+      const alertDrones = drones.filter(d => d.status === "Alert").length;
+      const defenseSats = satellites.filter(s => s.category === "Defense").length;
+
+      if (alertDrones !== lastDroneCount || defenseSats !== lastSatelliteCount) {
+        alertSound.play().catch(() => {});
+      }
+
+      lastDroneCount = alertDrones;
+      lastSatelliteCount = defenseSats;
+
+      defenseChart.data.datasets[0].data = [alertDrones, defenseSats];
+      defenseChart.update();
+
+      document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+
+    } catch (err) {
+      console.error("Error fetching live data:", err);
+      document.getElementById('lastUpdated').textContent = "Error!";
+    }
+  }
+
+  fetchDefenseData();
+  setInterval(fetchDefenseData, 30000);
+</script>
+
+</body>
+</html>
+{%endblock%}
